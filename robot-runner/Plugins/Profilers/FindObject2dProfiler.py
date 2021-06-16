@@ -10,8 +10,7 @@ class FindObject2dProfiler(LogFileProfiler):
     def __init__(self, ip_addr, username, hostname) -> None:
         super().__init__(ip_addr, username, hostname)
 
-
-    def process_log_files(self, output_folder, find_object_2d_locally=True):
+    def process_log_files(self, output_folder, find_object_2d_on_pc=True):
         # SSH to the remote machine
         try:
             ssh_client = SSHClient()
@@ -23,7 +22,7 @@ class FindObject2dProfiler(LogFileProfiler):
             find_object_2d_log_file = None
 
             # If find_object_2d node is executed on this PC, fetch the log file locally
-            if find_object_2d_locally:
+            if find_object_2d_on_pc:
                 find_object_2d_log_file = self.open_local_log_file("find_object_2d")
             # Otherwise fetch the file over SFTP 
             else:
@@ -50,6 +49,7 @@ class FindObject2dProfiler(LogFileProfiler):
             find_object_2d_df = find_object_2d_df.drop(columns=['detection_ended_at'])
 
             find_object_2d_df.to_csv(os.path.join(output_folder, "find_object_2d_results.csv"), index=False, header=True)
+            print("FindObject2d profiler done")
             
         finally:
             if find_object_2d_log_file:
@@ -67,12 +67,13 @@ class FindObject2dProfiler(LogFileProfiler):
 
     def process_find_object_2d_log_file(self, log_file):
         # Data to extract from the file
-        data = {'frame_received_at': [], 
-        'num_of_descriptors_extracted': [], 
-        'extraction_time_ms': [],
-        'detection_ended_at': [],
-        'detection_time_ms': [],
-        'id_of_detected_object': []
+        data = {
+            'frame_received_at': [], 
+            'num_of_descriptors_extracted': [], 
+            'extraction_time_ms': [],
+            'detection_ended_at': [],
+            'detection_time_ms': [],
+            'id_of_detected_object': []
         }
 
         for line in log_file:
