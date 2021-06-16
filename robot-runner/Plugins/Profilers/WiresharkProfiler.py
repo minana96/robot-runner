@@ -23,7 +23,7 @@ class WiresharkProfiler:
             'src_port': [],
             'dst_addr': [],
             'dst_port': [],
-            'length (B)': []
+            'length_B': []
         }
 
         self.profiler_on = True
@@ -64,5 +64,10 @@ class WiresharkProfiler:
         self.data['src_port'].append(packet[packet.transport_layer].srcport)
         self.data['dst_addr'].append(packet.ip.dst)
         self.data['dst_port'].append(packet[packet.transport_layer].dstport)
-        self.data['length (B)'].append(packet.length)
+        self.data['length_B'].append(packet.length)
+
+    def get_total_results(self, input_folder):
+        input_file = os.path.join(input_folder, "network.csv")
+        results_df = pd.read_csv(input_file)
+        return results_df['length_B'].count(), results_df['length_B'].sum()
         
