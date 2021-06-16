@@ -10,6 +10,7 @@ from pathlib import Path
 from paramiko import SSHClient, AutoAddPolicy
 
 from Plugins.Profilers.FindObject2dProfiler import FindObject2dProfiler
+from Plugins.Profilers.WiresharkProfiler import WiresharkProfiler
 
 
 class RobotRunnerConfig:
@@ -34,10 +35,12 @@ class RobotRunnerConfig:
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # NOTE: Setting some variable based on some criteria
     find_object_2d_profiler: FindObject2dProfiler
+    network_profiler: WiresharkProfiler
 
     def __init__(self):
         """Executes immediately after program start, on config load"""
         self.find_object_2d_profiler = FindObject2dProfiler(ip_addr="192.168.1.7", username="ubuntu", hostname="ubuntu")
+        self.network_profiler = WiresharkProfiler(network_interface='wlp0s20f3', pc_ip_address="192.168.1.9", robot_ip_adress="192.168.1.7")
         self.camera_client = None        
 
         EventSubscriptionController.subscribe_to_multiple_events([ 
@@ -57,7 +60,7 @@ class RobotRunnerConfig:
         run_table = RunTableModel(
             factors = [
                 #FactorModel("example_factor", ['example_treatment1', 'example_treatment2']),
-                FactorModel("runs_per_variation", range(1, 4))
+                FactorModel("runs_per_variation", range(1, 2))
             ]
         )
         run_table.create_experiment_run_table()
@@ -92,6 +95,7 @@ class RobotRunnerConfig:
     def start_measurement(self, context: RobotRunnerContext) -> None:
         """Perform any activity required for starting measurements."""
         print("Config.start_measurement called!")
+        self.network_profiler.start_measurement()
 
     def launch_mission(self, context: RobotRunnerContext) -> None:
         """Perform any activity interacting with the robotic
@@ -130,7 +134,8 @@ class RobotRunnerConfig:
     def stop_measurement(self, context: RobotRunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
         print("Config.stop_measurement called!")
-        self.find_object_2d_profiler.process_log_files(context.run_dir.absolute())
+        self.network_profiler.stop_measurement(context.run_dir.absolute())
+        self.find_object_2d_profiler.process_log_files(context.run_dir.absolute(), find_object_2d_on_pc=True)
 
     def stop_run(self, context: RobotRunnerContext) -> None:
         """Perform any activity required for stopping the run here.
