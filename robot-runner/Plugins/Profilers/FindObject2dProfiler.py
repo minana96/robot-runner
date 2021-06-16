@@ -11,6 +11,11 @@ class FindObject2dProfiler(LogFileProfiler):
         super().__init__(ip_addr, username, hostname)
 
     def process_log_files(self, output_folder, find_object_2d_on_pc=True):
+        ssh_client = None
+        sftp_client = None
+        find_object_2d_log_file = None
+        obj_recognition_results_log_file = None
+
         # SSH to the remote machine
         try:
             ssh_client = SSHClient()
@@ -18,9 +23,7 @@ class FindObject2dProfiler(LogFileProfiler):
             ssh_client.set_missing_host_key_policy(AutoAddPolicy())
             ssh_client.connect(self.ip_addr, username=self.username)
             sftp_client = ssh_client.open_sftp()
-
-            find_object_2d_log_file = None
-
+            
             # If find_object_2d node is executed on this PC, fetch the log file locally
             if find_object_2d_on_pc:
                 find_object_2d_log_file = self.open_local_log_file("find_object_2d")
@@ -30,7 +33,6 @@ class FindObject2dProfiler(LogFileProfiler):
 
             # Process log file
             find_object_2d_df = self.process_find_object_2d_log_file(find_object_2d_log_file)
-            find_object_2d_log_file.close()
 
             # Fetch remotely and process obj_recognition_results log file
             obj_recognition_results_log_file = self.open_remote_log_file(ssh_client, sftp_client, "obj_recognition_results")
@@ -52,6 +54,7 @@ class FindObject2dProfiler(LogFileProfiler):
             print("FindObject2d profiler done")
             
         finally:
+            # Close all resources that are successfully open
             if find_object_2d_log_file:
                 find_object_2d_log_file.close()
 
@@ -130,5 +133,10 @@ class FindObject2dProfiler(LogFileProfiler):
                 data['result_received'].append(time_received)
 
         return pd.DataFrame(data)
+
+    def get_average_results(self, input_folder):
+        input_file = os.path.join(input_folder, "find_object_2d_results.csv")
+        results_df = pd.read_csv(input_file)
+        return results_df['extraction_time_ms'].mean(), results_df['detection_time_ms'].mean(), results_df['result_delay_ms'].mean()
 
 
