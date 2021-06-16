@@ -59,9 +59,10 @@ class RobotRunnerConfig:
         representing each run robot-runner must perform"""
         run_table = RunTableModel(
             factors = [
-                #FactorModel("example_factor", ['example_treatment1', 'example_treatment2']),
-                FactorModel("runs_per_variation", range(1, 2))
-            ]
+                FactorModel("obj_recognition_offloaded", ['false', 'true']),
+                FactorModel("runs_per_variation", range(1, 4))
+            ],
+            data_columns=['avg_extraction_time', 'avg_detection_time', 'avg_result_delay', 'num_of_packets', 'size_of_packets']
         )
         run_table.create_experiment_run_table()
         return run_table.get_experiment_run_table()
@@ -109,8 +110,11 @@ class RobotRunnerConfig:
         mission_client.set_missing_host_key_policy(AutoAddPolicy())
         mission_client.connect("192.168.1.7", username="ubuntu")
 
+        # Pass the parameter to the launch file if object recognition is offloaded or not
+        obj_recognition_offloaded =  context.run_variation['obj_recognition_offloaded']
+        
         # Launch the mission
-        stdin, stdout, stderr = mission_client.exec_command("roslaunch sherlock raspi_obj_recognition.launch", get_pty = True)
+        stdin, stdout, stderr = mission_client.exec_command(f"roslaunch sherlock raspi_obj_recognition.launch offload:={obj_recognition_offloaded}", get_pty = True)
         
         # Print all otputs of the mission as it progresses
         for line in iter(stdout.readline, ""):
@@ -118,7 +122,7 @@ class RobotRunnerConfig:
 
         # Wait for the mission to end
         exit_status = stdout.channel.recv_exit_status()
-        print(50*"=")
+        print(70*"=")
 
         if exit_status == 0:
             print('Mission ended successfully!')
@@ -135,7 +139,11 @@ class RobotRunnerConfig:
         """Perform any activity here required for stopping measurements."""
         print("Config.stop_measurement called!")
         self.network_profiler.stop_measurement(context.run_dir.absolute())
-        self.find_object_2d_profiler.process_log_files(context.run_dir.absolute(), find_object_2d_on_pc=True)
+        
+        # Pass the information if find_object_2d is offloaded or not to the log reader
+        obj_recognition_offloaded = (context.run_variation['obj_recognition_offloaded'] == "true")
+
+        self.find_object_2d_profiler.process_log_files(context.run_dir.absolute(), obj_recognition_offloaded)
 
     def stop_run(self, context: RobotRunnerContext) -> None:
         """Perform any activity required for stopping the run here.
@@ -145,12 +153,26 @@ class RobotRunnerConfig:
 
         # Stop the SSH connection to camera
         self.camera_client.close()
-        print(50*"=")
+        print(70*"=")
         print("Camera stopped")
     
     def populate_run_data(self, context: RobotRunnerContext) -> tuple:
         """Return the run data as a row for the output manager represented as a tuple"""
-        return None
+        variation = context.run_variation
+        run_folder = context.run_dir.absolute()
+        
+        # Get averaged results from find_object_2d profiler
+        avg_extraction_time, avg_detection_time, avg_result_delay = self.find_object_2d_profiler.get_average_results(run_folder)
+        variation['avg_extraction_time'] = avg_extraction_time
+        variation['avg_detection_time'] = avg_detection_time
+        variation['avg_result_delay'] = avg_result_delay
+
+        # Get averaged results from wireshark profiler
+        num_of_packets, size_of_packets = self.network_profiler.get_total_results(run_folder)
+        variation['num_of_packets'] = num_of_packets
+        variation['size_of_packets'] = size_of_packets
+
+        return variation
 
     # ===============================================DO NOT ALTER BELOW THIS LINE=================================================
     # NOTE: Do not alter these values
