@@ -10,6 +10,8 @@ from pathlib import Path
 from paramiko import SSHClient, AutoAddPolicy
 
 from Plugins.Profilers.FindObject2dProfiler import FindObject2dProfiler
+from Plugins.Profilers.PowerProfiler import PowerProfiler
+from Plugins.Profilers.ResourceProfiler import ResourceProfiler
 from Plugins.Profilers.WiresharkProfiler import WiresharkProfiler
 
 
@@ -36,12 +38,16 @@ class RobotRunnerConfig:
     # NOTE: Setting some variable based on some criteria
     find_object_2d_profiler: FindObject2dProfiler
     network_profiler: WiresharkProfiler
+    resource_profiler: ResourceProfiler
+    power_profiler: PowerProfiler
 
     def __init__(self):
         """Executes immediately after program start, on config load"""
         self.find_object_2d_profiler = FindObject2dProfiler(ip_addr="192.168.1.7", username="ubuntu", hostname="ubuntu")
         self.network_profiler = WiresharkProfiler(network_interface='wlp0s20f3', pc_ip_address="192.168.1.9", robot_ip_adress="192.168.1.7")
-        self.camera_client = None        
+        self.resource_profiler = ResourceProfiler()
+        self.power_profiler = PowerProfiler()
+        self.startup_client = None        
 
         EventSubscriptionController.subscribe_to_multiple_events([ 
             (RobotRunnerEvents.START_RUN,           self.start_run),
@@ -60,9 +66,9 @@ class RobotRunnerConfig:
         run_table = RunTableModel(
             factors = [
                 FactorModel("obj_recognition_offloaded", ['false', 'true']),
-                FactorModel("runs_per_variation", range(1, 4))
+                #FactorModel("runs_per_variation", range(1, 4))
             ],
-            data_columns=['avg_extraction_time', 'avg_detection_time', 'avg_result_delay', 'num_of_packets', 'size_of_packets']
+            data_columns=['avg_extraction_time', 'avg_detection_time', 'avg_result_delay', 'num_of_packets', 'size_of_packets', 'avg_cpu_util', 'avg_memory_util']
         )
         run_table.create_experiment_run_table()
         return run_table.get_experiment_run_table()
@@ -74,19 +80,31 @@ class RobotRunnerConfig:
         print("Config.start_run() called!")
 
         # SSH to the robot
-        self.camera_client = SSHClient()
-        self.camera_client.load_host_keys("/home/milica/.ssh/known_hosts")
-        self.camera_client.set_missing_host_key_policy(AutoAddPolicy())
-        self.camera_client.connect("192.168.1.7", username="ubuntu")
+        self.startup_client = SSHClient()
+        self.startup_client.load_host_keys("/home/milica/.ssh/known_hosts")
+        self.startup_client.set_missing_host_key_policy(AutoAddPolicy())
+        self.startup_client.connect("192.168.1.7", username="ubuntu")
 
-        # Launch the camera
-        stdin, stdout, ststderr = self.camera_client.exec_command("roslaunch raspicam_node camerav2_1280x960.launch", get_pty = True)
+        # Launch camera and profilers
+        stdin, stdout, ststderr = self.startup_client.exec_command("roslaunch sherlock raspi_startup.launch", get_pty = True)
 
-        # Wait for the camera to start recording
+        camera_ready = False
+        resource_profiler_ready = False
+        power_profiler_ready = False
+
+        # Wait for the camera and profiler to be ready
         for line in iter(stdout.readline, ""):
             print(line, end = "")
+
             if "Video capture started" in line:
-                break
+                camera_ready = True
+            if "Resource profiler ready" in line:
+                resource_profiler_ready = True
+            if "Initialised connection with INA219 board" in line:
+                power_profiler_ready = True
+
+            if camera_ready and resource_profiler_ready and power_profiler_ready:
+                break        
         
         # Outputs and inputs to this session are not needed anymore
         stdin.close()
@@ -96,6 +114,8 @@ class RobotRunnerConfig:
     def start_measurement(self, context: RobotRunnerContext) -> None:
         """Perform any activity required for starting measurements."""
         print("Config.start_measurement called!")
+        self.resource_profiler.start_measurement()
+        self.power_profiler.start_measurement()
         self.network_profiler.start_measurement()
 
     def launch_mission(self, context: RobotRunnerContext) -> None:
@@ -138,12 +158,14 @@ class RobotRunnerConfig:
     def stop_measurement(self, context: RobotRunnerContext) -> None:
         """Perform any activity here required for stopping measurements."""
         print("Config.stop_measurement called!")
-        self.network_profiler.stop_measurement(context.run_dir.absolute())
-        
+        run_dir = context.run_dir.absolute()
+        self.network_profiler.stop_measurement(run_dir)
+        self.power_profiler.stop_measurement(run_dir)
+        self.resource_profiler.stop_measurement(run_dir)
+
         # Pass the information if find_object_2d is offloaded or not to the log reader
         obj_recognition_offloaded = (context.run_variation['obj_recognition_offloaded'] == "true")
-
-        self.find_object_2d_profiler.process_log_files(context.run_dir.absolute(), obj_recognition_offloaded)
+        self.find_object_2d_profiler.process_log_files(run_dir, obj_recognition_offloaded)
 
     def stop_run(self, context: RobotRunnerContext) -> None:
         """Perform any activity required for stopping the run here.
@@ -152,9 +174,9 @@ class RobotRunnerConfig:
         print("Config.stop_run() called!")
 
         # Stop the SSH connection to camera
-        self.camera_client.close()
+        self.startup_client.close()
         print(70*"=")
-        print("Camera stopped")
+        print("Camera and profiler stopped")
     
     def populate_run_data(self, context: RobotRunnerContext) -> tuple:
         """Return the run data as a row for the output manager represented as a tuple"""
@@ -171,6 +193,11 @@ class RobotRunnerConfig:
         num_of_packets, size_of_packets = self.network_profiler.get_total_results(run_folder)
         variation['num_of_packets'] = num_of_packets
         variation['size_of_packets'] = size_of_packets
+
+        # Get averaged results form resource profiler
+        avg_cpu_util, avg_memory_util = self.resource_profiler.get_total_results(run_folder)
+        variation['avg_cpu_util'] = avg_cpu_util
+        variation['avg_memory_util'] = avg_memory_util
 
         return variation
 
