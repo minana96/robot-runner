@@ -19,3 +19,7 @@ class ConfigAttributeInvalidError(ConfigBaseError):
                             BashHeaders.UNDERLINE + attribute_in_question + BashHeaders.ENDC + BashHeaders.FAIL + "\n" +
                             "%-*s  %s\n" % (10, "FOUND:", found) +
                             "%-*s  %s" % (10, "EXPECTED:", expected) + BashHeaders.ENDC)
+
+class ConfigRunTableCreationError(ConfigBaseError):
+    def __init__(self):
+        super().__init__("Run table could not be created succesffully. Check the allowed attribute values of RunTableModel class.")
