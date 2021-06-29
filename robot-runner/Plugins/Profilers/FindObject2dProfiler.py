@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 from paramiko import SSHClient, AutoAddPolicy
 from Plugins.Profilers.LogFileProfiler import LogFileProfiler
+from ProgressManager.Output.OutputProcedure import OutputProcedure
 
 
 class FindObject2dProfiler(LogFileProfiler):
@@ -35,23 +36,20 @@ class FindObject2dProfiler(LogFileProfiler):
             find_object_2d_df = self.process_find_object_2d_log_file(find_object_2d_log_file)
 
             # Fetch remotely and process obj_recognition_results log file
-            obj_recognition_results_log_file = self.open_remote_log_file(ssh_client, sftp_client, "obj_recognition_results")
+            obj_recognition_results_log_file = self.open_remote_log_file(ssh_client, sftp_client, "sherlock_obj_recognition")
             obj_recognition_results_df = self.process_obj_recognition_results(obj_recognition_results_log_file)
 
-            # Fill in mising values with None            
-            if len(find_object_2d_df['detection_ended_at']) > len(obj_recognition_results_df['result_received']):
-                num_of_missing_values = len(find_object_2d_df['detection_ended_at']) - len(obj_recognition_results_df['result_received'])
-                missing_values = [None]*num_of_missing_values
-
-                obj_recognition_results_df = obj_recognition_results_df.append(pd.DataFrame({"result_received": missing_values}), ignore_index=True)
-
             # Calculate the delay of receiving the detection result at the side of obj_recognition_results node in ms
-            find_object_2d_df['result_delay_ms'] = obj_recognition_results_df['result_received'] - find_object_2d_df['detection_ended_at']
+            find_object_2d_df['detection_received_at'] = obj_recognition_results_df['result_received']
+            find_object_2d_df['result_delay_ms'] = find_object_2d_df['detection_received_at'] - find_object_2d_df['detection_ended_at']
             find_object_2d_df['result_delay_ms'] = find_object_2d_df['result_delay_ms'].apply(lambda x: x.total_seconds() * 1000)
-            find_object_2d_df = find_object_2d_df.drop(columns=['detection_ended_at'])
 
             find_object_2d_df.to_csv(os.path.join(output_folder, "find_object_2d_results.csv"), index=False, header=True)
-            print("FindObject2d profiler done")
+            OutputProcedure.console_log_OK("FindObject2d profiler done")
+
+        except BaseException as e:
+            OutputProcedure.console_log_FAIL("FindObject2d profiler failed!")
+            print(e)
             
         finally:
             # Close all resources that are successfully open
@@ -100,16 +98,16 @@ class FindObject2dProfiler(LogFileProfiler):
                 data['extraction_time_ms'].append(extraction_time)
             # Feature detection
             elif ('INFO' in line) and ('detected' in line):
-                # Remove logging info
-                line = line[line.index(')') + 2:]
-
                 # Time when object is detected
                 time_as_string = line[line.index('(') + 1:line.index(')')]
-                detection_ended_at = datetime.strptime(time_as_string, '%H:%M:%S.%f')
+                detection_ended_at = datetime.strptime(time_as_string, '%Y-%m-%d %H:%M:%S.%f')
                 data['detection_ended_at'].append(detection_ended_at)
-            
-                # Object id
+
+                # Remove logging date and time 
                 line = line[line.index(')') + 2:]
+                # Remove time 
+                line = line[line.index(')') + 2:]
+                
                 if 'No objects' in line:
                     object_detected = None
                 else:
@@ -124,12 +122,14 @@ class FindObject2dProfiler(LogFileProfiler):
 
 
     def process_obj_recognition_results(self, log_file):
-        data = {'result_received': []}
+        data = {
+            'result_received': []
+        }
 
         for line in log_file:
-            if '[rosout][INFO]' in line:
-                time_received_string = line[line.index('(') + 1 : line.index(')')]
-                time_received = datetime.strptime(time_received_string, '%H:%M:%S.%f')
+            if '[rosout][INFO]' in line and 'detected' in line:
+                time_received_string = line[line.index('[rosout][INFO] ') + len('[rosout][INFO] ') : line.rfind(':')]
+                time_received = datetime.strptime(time_received_string, '%Y-%m-%d %H:%M:%S,%f')
                 data['result_received'].append(time_received)
 
         return pd.DataFrame(data)
@@ -137,6 +137,10 @@ class FindObject2dProfiler(LogFileProfiler):
     def get_average_results(self, input_folder):
         input_file = os.path.join(input_folder, "find_object_2d_results.csv")
         results_df = pd.read_csv(input_file)
-        return results_df['extraction_time_ms'].mean(), results_df['detection_time_ms'].mean(), results_df['result_delay_ms'].mean()
+        recognition_ratio = results_df['id_of_detected_object'].count() / len(results_df['id_of_detected_object']) * 100
+        return results_df['extraction_time_ms'].mean(), results_df['detection_time_ms'].mean(), results_df['result_delay_ms'].mean(), recognition_ratio
 
 
+if __name__ == "__main__":
+    fp = FindObject2dProfiler(ip_addr="192.168.1.7", username="ubuntu", hostname="ubuntu")
+    fp.process_log_files("/home/milica/Desktop", find_object_2d_on_pc=False)
