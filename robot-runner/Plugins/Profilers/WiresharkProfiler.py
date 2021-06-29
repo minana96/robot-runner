@@ -2,6 +2,7 @@ import pyshark
 import threading
 import os
 import pandas as pd
+from ProgressManager.Output.OutputProcedure import OutputProcedure
 
 
 class WiresharkProfiler:
@@ -29,7 +30,7 @@ class WiresharkProfiler:
         self.profiler_on = True
         self.network_thread = threading.Thread(target=self.capture_live_packets)
         self.network_thread.start()
-        print("Network profiler started")
+        OutputProcedure.console_log_OK("Network profiler started")
 
     def stop_measurement(self, output_folder) -> None:
         self.profiler_on = False
@@ -38,7 +39,7 @@ class WiresharkProfiler:
         # Save data frame in the file
         network_df = pd.DataFrame(self.data)
         network_df.to_csv(os.path.join(output_folder, "network.csv"), index=False, header=True)
-        print("Network profiler stopped")
+        OutputProcedure.console_log_OK("Network profiler stopped")
 
     def capture_live_packets(self):
         # Start the live capture
@@ -57,14 +58,26 @@ class WiresharkProfiler:
 
 
     def add_packet(self, packet):
-        # Parse details from the packed and save them in the data dictionary
-        self.data['timestamp'].append(packet.sniff_time)
-        self.data['protocol'].append(packet.transport_layer)
-        self.data['src_addr'].append(packet.ip.src)
-        self.data['src_port'].append(packet[packet.transport_layer].srcport)
-        self.data['dst_addr'].append(packet.ip.dst)
-        self.data['dst_port'].append(packet[packet.transport_layer].dstport)
-        self.data['length_B'].append(packet.length)
+        try:
+            # Parse details from the packed and save them in the data dictionary
+            timestamp = packet.sniff_time
+            protocol = packet.transport_layer
+            src_addr = packet.ip.src
+            src_port = packet[packet.transport_layer].srcport
+            dst_addr = packet.ip.dst
+            dst_port = packet[packet.transport_layer].dstport
+            lenght_B = packet.length
+
+            self.data['timestamp'].append(timestamp)
+            self.data['protocol'].append(protocol)
+            self.data['src_addr'].append(src_addr)
+            self.data['src_port'].append(src_port)
+            self.data['dst_addr'].append(dst_addr)
+            self.data['dst_port'].append(dst_port)
+            self.data['length_B'].append(lenght_B)
+        except:
+            OutputProcedure.console_log_FAIL("Error while processing a packet")
+            print(packet)
 
     def get_total_results(self, input_folder):
         input_file = os.path.join(input_folder, "network.csv")
