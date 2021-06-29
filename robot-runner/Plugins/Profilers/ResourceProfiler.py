@@ -51,11 +51,12 @@ class ResourceProfiler:
             power_df.to_csv(os.path.join(output_dir, "resources.csv"), index=False, header=True)
 
             OutputProcedure.console_log_OK("Resource profiler stopped")
-        except:
+        except BaseException as e:
             OutputProcedure.console_log_FAIL("Error while stoping resource profiler")
+            print(e)
 
 
-    def get_total_results(self, input_folder):
+    def get_average_results(self, input_folder):
         input_file = os.path.join(input_folder, "resources.csv")
         results_df = pd.read_csv(input_file)
         return results_df['cpu_util'].mean(), results_df['mem_util'].mean()
