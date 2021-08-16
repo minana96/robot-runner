@@ -10,7 +10,7 @@ The robot used in the experiment is [TurtleBot3 Burger](https://emanual.robotis.
 export ROS_MASTER_URI=http://<TurtleBot3_IP_address>:11311
 export ROS_HOSTNAME=<TurtleBot3_IP_address>
 ```
-It is **important** that these two lines, along with the other ROS variable definitions, are added to the very **fist lines** of the *.bashrc* file in TurtleBot3 (rational given in further sections). Conversly, the following lines need to be added to the *.bashrc* file on the PC:
+It is **important** that these two lines, along with the other ROS environment variables, are added to the very **fist lines** of the *.bashrc* file in TurtleBot3. Otherwise, the environment variables in *.bashrc* file will not be exported when ROS files are launched on the robot via SSH from the RR on PC. Conversly, the following lines need to be added to the *.bashrc* file on the PC:
 ```bash
 export ROS_MASTER_URI=http://<TurtleBot3_IP_address>:11311
 export ROS_HOSTNAME=<PC_IP_address>
@@ -68,4 +68,4 @@ cd <location of this cloned repository>
 python robot-runner/ experiments/offloading_experiment/<experiment configuration file>
 ```
 
-During replication, it is important that the noted values are adjusted to their respictive configuration (e.g., robot's IP adress, hostname, username).
+During replication, it is important that the noted values are adjusted to their respictive configuration (e.g., robot's IP adress, hostname, username). The values are noted in global variables section of all configuration files.
