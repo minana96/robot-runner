@@ -37,19 +37,27 @@ class RobotRunnerConfig:
     results_output_path:        Path             = Path("~/experiment_results")
     # =================================================USER SPECIFIC UNNECESSARY CONFIG===============================================
 
-    # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
-    # NOTE: Setting some variable based on some criteria
-    find_object_2d_profiler: FindObject2dProfiler
-    move_base_profiler: MoveBaseProfiler
-    network_profiler: WiresharkProfiler
-    resource_profiler: ResourceProfiler
-    power_profiler: PowerProfiler
+    # NOTE: Required configurations for experiment replication
+    robot_ip_addr:              str              = "192.168.1.7"
+    robot_username:             str              = "ubuntu"
+    robot_hostname:             str              = "ubuntu"
+    pc_ip_address:              str              = "192.168.1.9"
+    network_interface_used:     str              = "wlp0s20f3"
+    ssh_host_key_dir:           str              = "/home/milica/.ssh/known_hosts"
+
+    # Profilers used in the experiment
+    find_object_2d_profiler:    FindObject2dProfiler
+    move_base_profiler:         MoveBaseProfiler
+    network_profiler:           WiresharkProfiler
+    resource_profiler:          ResourceProfiler
+    power_profiler:             PowerProfiler
+
 
     def __init__(self):
         """Executes immediately after program start, on config load"""
-        self.find_object_2d_profiler = FindObject2dProfiler(ip_addr="192.168.1.7", username="ubuntu", hostname="ubuntu")
-        self.move_base_profiler = MoveBaseProfiler(ip_addr="192.168.1.7", username="ubuntu", hostname="ubuntu")
-        self.network_profiler = WiresharkProfiler(network_interface='wlp0s20f3', pc_ip_address="192.168.1.9", robot_ip_adress="192.168.1.7")
+        self.find_object_2d_profiler = FindObject2dProfiler(ip_addr=self.robot_ip_addr, username=self.robot_username, hostname=self.robot_hostname)
+        self.move_base_profiler = MoveBaseProfiler(ip_addr=self.robot_ip_addr, username=self.robot_username, hostname=self.robot_hostname)
+        self.network_profiler = WiresharkProfiler(network_interface=self.network_interface_used, pc_ip_address=self.pc_ip_address, robot_ip_adress=self.robot_ip_addr)
         self.resource_profiler = ResourceProfiler()
         self.power_profiler = PowerProfiler()
         self.startup_client = None     
@@ -102,9 +110,9 @@ class RobotRunnerConfig:
 
         # SSH to the robot
         self.startup_client = SSHClient()
-        self.startup_client.load_host_keys("/home/milica/.ssh/known_hosts")
+        self.startup_client.load_host_keys(self.ssh_host_key_dir)
         self.startup_client.set_missing_host_key_policy(AutoAddPolicy())
-        self.startup_client.connect("192.168.1.7", username="ubuntu")
+        self.startup_client.connect(self.robot_ip_addr, username=self.robot_username)
 
         # Launch camera and profilers
         if context.run_variation['frame_rate'] == '20':
@@ -156,9 +164,9 @@ class RobotRunnerConfig:
         
         # SSH to the robot
         mission_client = SSHClient()
-        mission_client.load_host_keys("/home/milica/.ssh/known_hosts")
+        mission_client.load_host_keys(self.ssh_host_key_dir)
         mission_client.set_missing_host_key_policy(AutoAddPolicy())
-        mission_client.connect("192.168.1.7", username="ubuntu")
+        mission_client.connect(self.robot_ip_addr, username=self.robot_username)
 
         # Pass the parameter about the current frame rate
         increased_frame_rate = (variation['frame_rate'] == '60')
