@@ -1,4 +1,4 @@
-# Experiment Orchestration Tool for Evaluation of Computation Offloading Strategies
+# Experiment Orchestration Tool for Evaluation of Computation Offloading Strategies in Robotic Systems
 
 Robot Runner (RR) is a tool for automatic execution of measurement-based experiments on robotics software. For further details about the tool itself, the reader is reffered to [this](https://github.com/S2-group/robot-runner) GitHub repository, from which this repository is forked from and adjusted for the purpose of evaluation of the effect that computation offloading strageies have on the performance and energy consumption of ROS based systems. The guidelines for experiment replication and RR configuration are given below.
 
