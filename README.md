@@ -38,6 +38,14 @@ The *sherlock* ROS package, that encapsulates the robotic mission under experime
 
 The ROS package that needs to be configured on the PC is *ros_profilers_msgs*. The package source code and configuration instructions are provided in [this](https://github.com/minana96/ros_profilers_msgs) repository. This package contains ROS service definitions, for service calls made by two profilers (details in next section).
 
+Finally, make sure that the following ROS packages are installed on the PC, so that SLAM, localisation, navigation and object recognition tasks can be offloaded:
+```bash
+sudo apt install ros-melodic-gmapping
+sudo apt install ros-melodic-amcl
+sudo apt install ros-melodic-navigation
+sudo apt install ros-melodic-find-object-2d
+```
+
 # Profilers
 
 Profilers for collecting several metrics are implemented for the purpose of this experiment, but there are no restrictions to their broader usage in other experiments as well. The profilers can be added as plugins to RR and their source code is located in `robot-runner/Plugins/Profilers/` directory in this repository. The profilers and their purpose are as follows:
